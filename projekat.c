@@ -1,10 +1,11 @@
 #include<GL/glut.h>
 #include<stdlib.h>
 #include<math.h>
-
+#include<stdio.h>
 
 #define TIMER_ID 1
 #define TIMER_INTERVAL 8
+#define MAX 1000
 
 static void display(void);
 static void on_keyboard(unsigned char key, int x, int y);
@@ -15,9 +16,26 @@ static void init_lights();
 
 
 float animation_parameter;
+float a=0;
 int animation_ongoing;
-
+int n=0;
+int xKoordinatePrepreke[] = {-6, -3, 0, 3, 6};
 float x1=0;
+
+
+int ukupno=0;
+float zL=5.9;
+
+typedef struct {
+    float xP, yP, zP;
+    float lP, dP, nP;
+}Prepreka;
+
+void postavi_prepreku();
+void provera();
+
+int k=0, p1=0, p2=0;
+Prepreka nizP[MAX]; 
 
 int main(int argc, char** argv){
 
@@ -39,7 +57,7 @@ int main(int argc, char** argv){
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-	animation_parameter = -1.5;
+	animation_parameter = 0;
 	animation_ongoing = 0;
 	
 	glutMainLoop();
@@ -60,15 +78,28 @@ static void material()
 	glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
 	glMaterialf(GL_FRONT, GL_SHININESS, shine);
 	glMaterialfv(GL_FRONT, GL_EMISSION, no_material);
+	
 }
+
 
 static void on_timer(int id)
 {
     if (TIMER_ID != id)
         return;
-
-    animation_parameter += 0.04;
-
+	
+	if(k>=100)
+		a += 0.1;
+    animation_parameter += 0.8;
+	k++;
+	
+	provera();	
+	if(k%1750==0){
+		p2-=1400;
+	}else if(k%875==0){
+		p1-=1400;
+	}
+	
+	
     glutPostRedisplay();
 
     if (animation_ongoing) {
@@ -80,13 +111,17 @@ static void key(int k, int x, int y)
 {
 	switch(k){
 		case GLUT_KEY_LEFT:
-			if(x1-0.15>-6)
-				x1-=0.15;
+			if(n==1 && x1+0.7<6)
+				x1+=0.7;
+			else if(x1-0.7>-6)
+				x1-=0.7;
 			glutPostRedisplay();
 			break;
 		case GLUT_KEY_RIGHT:
-			if(x1+0.15<6)
-				x1+=0.15;
+			if(n==1 && x1-0.7>-6)
+				x1-=0.7;
+			else if(x1+0.7<6)
+				x1+=0.7;
 			glutPostRedisplay();
 			break;
 	}
@@ -161,11 +196,77 @@ static void material2()
 }	
 
 
+static void put(){
+
+	
+	glPushMatrix();
+		glTranslatef(0, 0, p1 + animation_parameter);
+		material2();
+    	glBegin(GL_POLYGON);     
+       		glVertex3f(7.5, -1.1, -670);
+        	glVertex3f(-7.5, -1.1, -670);
+        	glVertex3f(-7.5, -1.1, 30);
+      		glVertex3f(7.5, -1.1, 30);
+    	glEnd();
+    	
+    glPopMatrix();
+    
+    glPushMatrix();
+    	glTranslatef(0, 0, p2 + animation_parameter);
+    	material2();
+    	glBegin(GL_POLYGON);
+        	glVertex3f(7.5, -1.1, -1370);
+        	glVertex3f(-7.5, -1.1, -1370);
+        	glVertex3f(-7.5, -1.1, -670);
+        	glVertex3f(7.5, -1.1, -670);
+    	glEnd();
+
+    glPopMatrix();
+    
+}
+
+
+
+void provera(){
+	
+	int i;
+	for(i=0; i<ukupno; i++) {
+        if(abs(nizP[i].zP+animation_parameter+1 - zL) < 0.00002) {
+            if((x1 - 1.1 < nizP[i].dP && x1 - 1.1 > nizP[i].lP) || (x1 + 1.1 < nizP[i].dP && x1 + 1.1 > nizP[i].lP)
+            || (x1 -1.1 < nizP[i].zP+1))
+                animation_ongoing = 0;
+        }
+    }	
+	
+
+}
+
+void postavi_prepreku(){
+
+	int brPrepreka = rand()%3;
+	
+	int i;
+	for(i=0; i<brPrepreka; i++){
+		Prepreka p;
+		p.xP = xKoordinatePrepreke[rand()%5];
+		p.yP = 0;
+		p.zP = -k-60;
+		p.lP = p.xP - 1;
+		p.dP = p.xP + 1;
+		p.nP = p.zP+1;
+		nizP[ukupno]=p;
+		ukupno++;
+	}
+		
+}
+
+
 static void display(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	
 	GLfloat light_position[] = { 1, 1, 1, 0 };
+	
 	
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -175,46 +276,41 @@ static void display(void){
 	    	  
 	init_lights();
 	
+	if(k>=100 && a<=180){
+		glRotatef(a, 0, 0.5, 1);
+	}else if(k>=100){
+		glRotatef(180, 0, 0.5, 1);
+		n=1;
+	}
 	
+	
+	put();
+	
+	
+	if(k%20==0)
+		postavi_prepreku();
+
+
 	glPushMatrix();
-		glTranslatef(0, 0, animation_parameter * 80);
-		
-		material2();
-		glColor3f(0, 1, 1);
-    	glBegin(GL_POLYGON);
-        	glVertex3f(7.5, -1.1, -370);
-        	glVertex3f(-7.5, -1.1, -370);
-        	glVertex3f(-7.5, -1.1, 30);
-        	glVertex3f(7.5, -1.1, 30);
-    	glEnd();
-    
-    	material2();
-		glColor3f(0, 1, 1);
-    	glBegin(GL_POLYGON);
-        	glVertex3f(7.5, -1.1, -770);
-        	glVertex3f(-7.5, -1.1, -770);
-        	glVertex3f(-7.5, -1.1, -370);
-        	glVertex3f(7.5, -1.1, -370);
-    	glEnd();
-    
-    	material2();
-		glColor3f(0, 1, 1);
-    	glBegin(GL_POLYGON);
-        	glVertex3f(7.5, -1.1, -1170);
-        	glVertex3f(-7.5, -1.1, -1170);
-        	glVertex3f(-7.5, -1.1, -770);
-        	glVertex3f(7.5, -1.1, -770);
-    	glEnd();
-    
-    glPopMatrix();
-    
-	glPushMatrix();
-		glTranslatef(0+x1, 0, 9);
-		glRotatef(animation_parameter * 80, 1, 0, 0);
+		glTranslatef(0+x1, 0, 7);
+		glRotatef(animation_parameter, 1, 0, 0);
 		material();
 		glutSolidSphere(1.1, 30, 30);
     glPopMatrix();	
 
+	int j;
+	for(j=0; j<ukupno; j++)
+	{
+		glPushMatrix();
+			glTranslatef(0+nizP[j].xP, 0, nizP[j].zP+animation_parameter);
+			glRotatef(animation_parameter*10, 0,0,1);	
+			material();
+  			glutSolidIcosahedron();		
+  		glPopMatrix();	
+  		
+	}
+	
+	
 	
 	glutSwapBuffers();
 

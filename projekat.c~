@@ -1,11 +1,14 @@
 #include<GL/glut.h>
 #include<stdlib.h>
+#include<math.h>
+
 
 #define TIMER_ID 1
 #define TIMER_INTERVAL 8
 
 static void display(void);
 static void on_keyboard(unsigned char key, int x, int y);
+static void key(int k, int x, int y);
 static void on_reshape(int width, int height);
 static void on_timer(int id);
 static void init_lights();
@@ -14,20 +17,22 @@ static void init_lights();
 float animation_parameter;
 int animation_ongoing;
 
+float x1=0;
 
 int main(int argc, char** argv){
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
 	
-	glutInitWindowSize(600, 600);
-	glutInitWindowPosition(300, 300);
+	glutInitWindowSize(500, 500);
+	glutInitWindowPosition(200, 200);
 	glutCreateWindow(argv[0]);
 	
 
 	glutDisplayFunc(display);
 	glutReshapeFunc(on_reshape);
 	glutKeyboardFunc(on_keyboard);
+	glutSpecialFunc(key);
 	glClearColor(0.196078, 0.6, 0.8, 0);
 	
 	glEnable(GL_DEPTH_TEST);
@@ -62,7 +67,7 @@ static void on_timer(int id)
     if (TIMER_ID != id)
         return;
 
-    animation_parameter += 0.08;
+    animation_parameter += 0.04;
 
     glutPostRedisplay();
 
@@ -71,23 +76,40 @@ static void on_timer(int id)
     }
 }
 
+static void key(int k, int x, int y)
+{
+	switch(k){
+		case GLUT_KEY_LEFT:
+			if(x1-0.15>-6)
+				x1-=0.15;
+			glutPostRedisplay();
+			break;
+		case GLUT_KEY_RIGHT:
+			if(x1+0.15<6)
+				x1+=0.15;
+			glutPostRedisplay();
+			break;
+	}
+}
+
+
 static void on_keyboard(unsigned char key, int x, int y)
 {
     switch (key) {
-     case 27:
-         exit(0);
-         break;
-     case 'g':
-     case 'G':
-        if (!animation_ongoing) {
-            animation_ongoing = 1;
-            glutTimerFunc(TIMER_INTERVAL, on_timer, TIMER_ID);
-        }
-        break;
-     case 's':
-     case 'S':
-     	animation_ongoing=0;
-     	break;
+    	case 27:
+        	exit(0);
+    	    break;
+    	case 'g':
+    	case 'G':
+    	    if (!animation_ongoing) {
+    	        animation_ongoing = 1;
+    	        glutTimerFunc(TIMER_INTERVAL, on_timer, TIMER_ID);
+    	    }
+    	   break;
+    	case 's':
+    	case 'S':
+    		animation_ongoing=0;
+     		break;
        } 
 }
 
@@ -139,9 +161,9 @@ static void material2()
 }	
 
 
-
 static void display(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	
 	GLfloat light_position[] = { 1, 1, 1, 0 };
 	
@@ -150,27 +172,49 @@ static void display(void){
 	gluLookAt(0, 13, 30,
 		  	  0, 0, 0,
 	    	  0, 1, 0);
-	
+	    	  
 	init_lights();
 	
+	
+	glPushMatrix();
+		glTranslatef(0, 0, animation_parameter * 80);
+		
 		material2();
 		glColor3f(0, 1, 1);
     	glBegin(GL_POLYGON);
-        	glVertex3f(7.5, -1, -150);
-        	glVertex3f(-7.5, -1, -150);
-        	glVertex3f(-7.5, -1, 150);
-        	glVertex3f(7.5, -1, 150);
+        	glVertex3f(7.5, -1.1, -370);
+        	glVertex3f(-7.5, -1.1, -370);
+        	glVertex3f(-7.5, -1.1, 30);
+        	glVertex3f(7.5, -1.1, 30);
     	glEnd();
     
+    	material2();
+		glColor3f(0, 1, 1);
+    	glBegin(GL_POLYGON);
+        	glVertex3f(7.5, -1.1, -770);
+        	glVertex3f(-7.5, -1.1, -770);
+        	glVertex3f(-7.5, -1.1, -370);
+        	glVertex3f(7.5, -1.1, -370);
+    	glEnd();
+    
+    	material2();
+		glColor3f(0, 1, 1);
+    	glBegin(GL_POLYGON);
+        	glVertex3f(7.5, -1.1, -1170);
+        	glVertex3f(-7.5, -1.1, -1170);
+        	glVertex3f(-7.5, -1.1, -770);
+        	glVertex3f(7.5, -1.1, -770);
+    	glEnd();
+    
+    glPopMatrix();
+    
 	glPushMatrix();
-		glTranslatef(0, 0, 6);
+		glTranslatef(0+x1, 0, 9);
 		glRotatef(animation_parameter * 80, 1, 0, 0);
 		material();
-		glutSolidSphere(1.5, 22, 22);
+		glutSolidSphere(1.1, 30, 30);
     glPopMatrix();	
-		
-	
-	
+
 	
 	glutSwapBuffers();
 
