@@ -2,9 +2,10 @@
 #include<stdlib.h>
 #include<math.h>
 #include<stdio.h>
+#include<string.h>
 
 #define TIMER_ID 1
-#define TIMER_INTERVAL 8
+#define TIMER_INTERVAL 3
 #define MAX 1000
 
 static void display(void);
@@ -15,27 +16,47 @@ static void on_timer(int id);
 static void init_lights();
 
 
+void set_obstacle();
+void check();
+
 float animation_parameter;
-float a=0;
 int animation_ongoing;
-int n=0;
-int xKoordinatePrepreke[] = {-6, -3, 0, 3, 6};
-float x1=0;
 
+int road_turned=0;
+float angle=0;
+float angle2=0;
+float x_ball=0;
 
-int ukupno=0;
-float zL=5.9;
+int parameter=0, road1=0, road2=0;
+
+int num_o=0, num_d=0;
+float z_ball=5.9;
+int score=0;
+
+float camera_move=0;
+int flag_camera=0;
+
 
 typedef struct {
-    float xP, yP, zP;
-    float lP, dP, nP;
-}Prepreka;
+    float x_o, y_o, z_o;
+    float l_o, r_o; /*left, right*/
+}Obstacle;
 
-void postavi_prepreku();
-void provera();
 
-int k=0, p1=0, p2=0;
-Prepreka nizP[MAX]; 
+typedef struct {
+    float x_d, y_d, z_d;
+    float l_d, r_d; /*left, right*/
+}Diamond;
+
+
+Obstacle array_o[MAX]; 
+Diamond array_d[MAX];
+int x_coord_obstacle[] = {-6, -3, 0, 3, 6};
+int x_coord_diamond[] = {-5, -1, 1, 5};
+
+static void material();
+static void material2();
+static void material3();
 
 int main(int argc, char** argv){
 
@@ -51,7 +72,8 @@ int main(int argc, char** argv){
 	glutReshapeFunc(on_reshape);
 	glutKeyboardFunc(on_keyboard);
 	glutSpecialFunc(key);
-	glClearColor(0.196078, 0.6, 0.8, 0);
+	glClearColor( 0.196078, 0.196078, 0.8,0);
+	
 	
 	glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -64,21 +86,14 @@ int main(int argc, char** argv){
 	return 0;
 }
 
-static void material()
+
+
+static void on_reshape(int width, int height)
 {
-    GLfloat no_material[] = { 0, 0, 0, 1 };
-	GLfloat material_ambient[] = { 0.3, 0.3, 0.4, 1 };
-	GLfloat material_diffuse[] = { 0.7, 0.1, 0.7, 1 };
-	GLfloat material_specular[] = { 1, 1, 1, 1 };
-	GLfloat shine = 70;
-	 
-	 
-	glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
-	glMaterialf(GL_FRONT, GL_SHININESS, shine);
-	glMaterialfv(GL_FRONT, GL_EMISSION, no_material);
-	
+    glViewport(0, 0, width, height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(30, (float) width / height, 1, 1200);
 }
 
 
@@ -87,18 +102,38 @@ static void on_timer(int id)
     if (TIMER_ID != id)
         return;
 	
-	if(k>=100)
-		a += 0.1;
-    animation_parameter += 0.8;
-	k++;
+	if(parameter>=100)
+		angle += 0.1;
+    
+	parameter++;
+	animation_parameter += 0.8;
 	
-	provera();	
-	if(k%1750==0){
-		p2-=1400;
-	}else if(k%875==0){
-		p1-=1400;
+	check();
+/*	transliramo nazad ravan koja predstavlja put ako je presla granicu koju pokriva kamera*/
+	if(parameter%1750==0){
+		road2-=1400;
+	}else if(parameter%875==0){
+		road1-=1400;
 	}
 	
+/*	u slucaju da loptica udari prepreku treba da pomerimo lopticu i koordinate gde gleda kamera, a to radimo sa camera_move */
+	if(flag_camera==1 && camera_move<80){
+		camera_move+=0.5;
+	}else if(camera_move>0){ /*postavljamo sve na 0, jer smo izgubili pa pocinjemo ispocetka*/
+			camera_move=0;
+     		animation_ongoing=0;
+     		angle=0;
+     		parameter=0;
+     		road1=0;
+     		road2=0;
+     		x_ball=0;
+     		score=0;
+     		animation_parameter=0;
+     		num_o=0;
+     		num_d=0;
+     		flag_camera=0;
+     		road_turned=0;
+	}
 	
     glutPostRedisplay();
 
@@ -111,18 +146,24 @@ static void key(int k, int x, int y)
 {
 	switch(k){
 		case GLUT_KEY_LEFT:
-			if(n==1 && x1+0.7<6)
-				x1+=0.7;
-			else if(x1-0.7>-6)
-				x1-=0.7;
+		if(animation_ongoing==1){
+/*		road_turned nam sluzi da znamo da li se put potpuno okrenuo, 180° ako jeste, onda obrcemo smer loptice (ako pritisnemo levu
+		strelicu loptica se ici (njeno) desno i obrnuto, ali posto se put okrenuo izgledace da ide levo (nase)), ovo radimo da bi se 			olaksala igrica */
+			if(road_turned==1 && x_ball+0.7<6)
+				x_ball+=0.7;
+			else if(x_ball-0.7>-6)
+				x_ball-=0.7;
 			glutPostRedisplay();
+		}
 			break;
 		case GLUT_KEY_RIGHT:
-			if(n==1 && x1-0.7>-6)
-				x1-=0.7;
-			else if(x1+0.7<6)
-				x1+=0.7;
+		if(animation_ongoing==1){
+			if(road_turned==1 && x_ball-0.7>-6)
+				x_ball-=0.7;
+			else if(x_ball+0.7<6)
+				x_ball+=0.7;
 			glutPostRedisplay();
+			}
 			break;
 	}
 }
@@ -134,29 +175,226 @@ static void on_keyboard(unsigned char key, int x, int y)
     	case 27:
         	exit(0);
     	    break;
-    	case 'g':
-    	case 'G':
-    	    if (!animation_ongoing) {
-    	        animation_ongoing = 1;
+        case 32:
+			if (!animation_ongoing) {
+   	        	animation_ongoing = 1;
     	        glutTimerFunc(TIMER_INTERVAL, on_timer, TIMER_ID);
-    	    }
-    	   break;
-    	case 's':
-    	case 'S':
+    	    	}
+			break;  
+    	case 'p':
+    	case 'P':
     		animation_ongoing=0;
      		break;
        } 
 }
 
+static void road(){
 
-static void on_reshape(int width, int height)
-{
-    glViewport(0, 0, width, height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(30, (float) width / height, 1, 100);
+	
+	glPushMatrix();
+		glTranslatef(0, 0, road1 + animation_parameter);
+		material2();
+    	glBegin(GL_POLYGON);     
+       		glVertex3f(7.5, -1.1, -670);
+        	glVertex3f(-7.5, -1.1, -670);
+        	glVertex3f(-7.5, -1.1, 30);
+      		glVertex3f(7.5, -1.1, 30);
+    	glEnd();
+    	
+    glPopMatrix();
+    
+    glPushMatrix();
+    	glTranslatef(0, 0, road2 + animation_parameter);
+    	material2();
+    	glBegin(GL_POLYGON);
+        	glVertex3f(7.5, -1.1, -1370);
+        	glVertex3f(-7.5, -1.1, -1370);
+        	glVertex3f(-7.5, -1.1, -670);
+        	glVertex3f(7.5, -1.1, -670);
+    	glEnd();
+
+    glPopMatrix();
+    
 }
 
+
+void set_obstacle(){
+
+/*	random biramo koliko ce biti prepreka u jednoj liniji na putu, kao i na kojim koordinatama ce biti*/
+	int row = rand()%3;
+	int i;
+	
+	for(i=0; i<row; i++){
+		Obstacle ob;
+		ob.x_o = x_coord_obstacle[rand()%5];
+		ob.y_o = 0;
+		ob.z_o = -parameter-70;
+		ob.l_o = ob.x_o - 1;
+		ob.r_o = ob.x_o + 1;
+		array_o[num_o]=ob;
+		num_o++;
+	}
+		
+}
+
+
+
+void set_diamond(){
+
+	/*	random biramo na kojim koordinatama ce biti dijamanti */
+		Diamond d;
+		d.x_d = x_coord_diamond[rand()%4];
+		d.y_d = 0;
+		d.z_d = -parameter-70;
+		d.l_d = d.x_d - 1;
+		d.r_d = d.x_d + 1;
+		array_d[num_d]=d;
+		num_d++;
+		
+}
+
+
+void check(){
+
+/*	proveravamo da li je loptica udarila u neku prepreku i ako jeste postavljamo flag_camera na 1 kako bi se kamera i loptica translirali*/
+	int i;
+	for(i=0; i<num_o; i++) {
+        if(abs(array_o[i].z_o+animation_parameter+1 - z_ball) < 0.00002) {
+            if((x_ball - 1.1 < array_o[i].r_o && x_ball - 1.1 > array_o[i].l_o) 
+            || (x_ball + 1.1 < array_o[i].r_o && x_ball + 1.1 > array_o[i].l_o)
+            || (z_ball-1 < abs(array_o[i].z_o+animation_parameter+1) && x_ball<array_o[i].r_o && x_ball>array_o[i].l_o)){
+                flag_camera=1;
+ 			}
+        }
+    }
+    
+ /*  proveravamo da li je loptica 'pokupila' dijamant na putu i ako jeste on nestaje i povecava se score */
+    for(i=0; i<num_d; i++) {
+        if(abs(array_d[i].z_d+animation_parameter+1 - z_ball) < 0.00002) {
+            if((x_ball - 1.1 < array_d[i].r_d && x_ball - 1.1 > array_d[i].l_d) 
+            || (x_ball + 1.1 < array_d[i].r_d && x_ball + 1.1 > array_d[i].l_d)
+            || (z_ball-1 < abs(array_d[i].z_d+animation_parameter+1) && x_ball<array_d[i].r_d && x_ball>array_d[i].l_d)){
+	            array_d[i].x_d=0;
+	            array_d[i].z_d=0;
+	            score+=10;
+ 			}
+        }
+    }
+    
+}
+
+
+static void display(void){
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	
+	init_lights();
+	
+/*
+	ako igrica traje(nismo izgubili) flag_camera ce biti 0 i kamera ce gledati u 0,0,0
+	ako je loptica udarila prepreku pomeramo gde gleda kamera
+*/
+	if(flag_camera!=1){
+	gluLookAt(0, 13, 30,
+			  0, 0, 0,
+	    	  0, 1, 0);
+	}else if(angle2>165){
+	gluLookAt(0, 13, 30,
+			  0, -camera_move*3.5, 0,
+	    	  0, 1, 0);
+	}else if(angle2>130 && angle2<165){
+	gluLookAt(0, 13, 30, 
+	          -camera_move/angle2*10, -camera_move*angle2/200,
+			  0, 0, 1, 0);
+	}else if(angle2>100 && angle2<130){
+	gluLookAt(0, 13, 30,
+			  -camera_move, -camera_move*angle2/50, 0,
+	    	  0, 1, 0);
+	}else if(angle2>75 && angle2<100){
+	gluLookAt(0, 13, 30,
+			  -camera_move, -camera_move/2, 0,
+	    	  0, 1, 0);
+	}else if(angle2>50 && angle2<75){
+	gluLookAt(0, 13, 30,
+			  -camera_move*1.8, camera_move, 0,
+	    	  0, 1, 0);
+	}else if(angle2>20 && angle2<50){
+	gluLookAt(0, 13, 30,
+			  -camera_move, camera_move, 0,
+	    	  0, 1, 0);
+	}
+	else{
+	gluLookAt(0, 13, 30,
+			  0, camera_move, 0,
+	    	  0, 1, 0);
+	}
+	
+/*	pocinjemo da postepeno rotiramo scenu kada parameter dodje do 100, sve dok ne dodjemo do 180°, tu stajemo*/
+	if(flag_camera!=1){
+		
+		if(parameter>=100 && angle<=180){
+			glRotatef(angle, 0, 0.5, 1);
+		}else if(parameter>=100){
+			glRotatef(180, 0, 0.5, 1);
+			road_turned=1;
+		}
+		
+		if(angle<=180)
+			angle2=angle;
+		else
+			angle2=180;
+	}else{
+		glRotatef(angle2,0,0.5,1);	
+	}
+	
+	road();
+	
+	if(parameter%30==0){
+		set_obstacle();
+	}else if(parameter%137==0){
+		set_diamond();
+	}
+	
+	
+	glPushMatrix();
+		glTranslatef(0+x_ball, 0+camera_move, 7);
+		glRotatef(animation_parameter, 1, 0, 0);
+		material();
+		glutSolidSphere(1.1, 30, 30);
+    glPopMatrix();	
+
+	int j;
+	for(j=0; j<num_o; j++)
+	{
+		glPushMatrix();
+			glTranslatef(0+array_o[j].x_o, 0, array_o[j].z_o+animation_parameter);
+			glRotatef(animation_parameter*10, 0,0,1);	
+			material3();
+  			glutSolidIcosahedron();		
+  		glPopMatrix();	
+  		
+	}
+	
+	int m;
+	for(m=0; m<num_d; m++)
+	{
+		glPushMatrix();
+			glTranslatef(0+array_d[m].x_d, 0, array_d[m].z_d+animation_parameter);
+			glRotatef(90,1,0,0);
+			glRotatef(animation_parameter*10, 0,0,1);
+			material();
+  			glutSolidOctahedron();		
+  		glPopMatrix();	
+  		
+	}
+	
+	glutSwapBuffers();
+
+}
 
 static void init_lights()
 {
@@ -179,13 +417,47 @@ static void init_lights()
 	glShadeModel(GL_SMOOTH);
 }
 
+
+static void material3()
+{	
+	GLfloat no_material[] = { 0, 0, 0, 1 };
+    GLfloat material_ambient[] = { 0.9, 0.7, 0.7, 1 };
+    GLfloat material_diffuse[] = {0.556863, 0.0137255, 0.319608, 1 };
+    GLfloat material_specular[] = { 1, 1, 1, 1 };
+    GLfloat low_shininess[] = { 100 };
+	
+	glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
+        glMaterialfv(GL_FRONT, GL_SHININESS, low_shininess);
+        glMaterialfv(GL_FRONT, GL_EMISSION, no_material);
+}
+
+
 static void material2()
 {
-    GLfloat no_material[] = { 0, 0.8, 0.3, 1 };
-	GLfloat material_ambient[] = { 0.8, 0.9, 0.5, 1 };
-	GLfloat material_diffuse[] = { 0.2, 0.6, 0.3, 1 };
-	GLfloat material_specular[] = { 0.1, 0.1, 0.1, 1 };
-	GLfloat shine = 10;
+	GLfloat material_ambient[] = { 0.7, 0.7, 0.7, 1 };
+    GLfloat material_diffuse[] = {0.329412, 0.329412, 0.329412, 1 };
+    GLfloat material_emission[] = { 0.3, 0.3, 0.3, 0 };
+	GLfloat no_material[] = { 0, 0, 0, 1 };
+	GLfloat no_shininess[] = { 0 };
+	
+	glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, no_material);
+    glMaterialfv(GL_FRONT, GL_SHININESS, no_shininess);
+    glMaterialfv(GL_FRONT, GL_EMISSION, material_emission);
+
+}	
+
+
+static void material()
+{
+    GLfloat no_material[] = { 0, 0, 0, 1 };
+	GLfloat material_ambient[] = { 0.7, 0.7, 0.7, 1 };
+	GLfloat material_diffuse[] = {1,1,0, 1 };
+	GLfloat material_specular[] = { 1, 1, 1, 1 };
+	GLfloat shine = 70;
 	 
 	 
 	glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
@@ -193,125 +465,6 @@ static void material2()
 	glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
 	glMaterialf(GL_FRONT, GL_SHININESS, shine);
 	glMaterialfv(GL_FRONT, GL_EMISSION, no_material);
+
 }	
 
-
-static void put(){
-
-	
-	glPushMatrix();
-		glTranslatef(0, 0, p1 + animation_parameter);
-		material2();
-    	glBegin(GL_POLYGON);     
-       		glVertex3f(7.5, -1.1, -670);
-        	glVertex3f(-7.5, -1.1, -670);
-        	glVertex3f(-7.5, -1.1, 30);
-      		glVertex3f(7.5, -1.1, 30);
-    	glEnd();
-    	
-    glPopMatrix();
-    
-    glPushMatrix();
-    	glTranslatef(0, 0, p2 + animation_parameter);
-    	material2();
-    	glBegin(GL_POLYGON);
-        	glVertex3f(7.5, -1.1, -1370);
-        	glVertex3f(-7.5, -1.1, -1370);
-        	glVertex3f(-7.5, -1.1, -670);
-        	glVertex3f(7.5, -1.1, -670);
-    	glEnd();
-
-    glPopMatrix();
-    
-}
-
-
-
-void provera(){
-	
-	int i;
-	for(i=0; i<ukupno; i++) {
-        if(abs(nizP[i].zP+animation_parameter+1 - zL) < 0.00002) {
-            if((x1 - 1.1 < nizP[i].dP && x1 - 1.1 > nizP[i].lP) || (x1 + 1.1 < nizP[i].dP && x1 + 1.1 > nizP[i].lP)
-            || (x1 -1.1 < nizP[i].zP+1))
-                animation_ongoing = 0;
-        }
-    }	
-	
-
-}
-
-void postavi_prepreku(){
-
-	int brPrepreka = rand()%3;
-	
-	int i;
-	for(i=0; i<brPrepreka; i++){
-		Prepreka p;
-		p.xP = xKoordinatePrepreke[rand()%5];
-		p.yP = 0;
-		p.zP = -k-60;
-		p.lP = p.xP - 1;
-		p.dP = p.xP + 1;
-		p.nP = p.zP+1;
-		nizP[ukupno]=p;
-		ukupno++;
-	}
-		
-}
-
-
-static void display(void){
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	
-	GLfloat light_position[] = { 1, 1, 1, 0 };
-	
-	
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	gluLookAt(0, 13, 30,
-		  	  0, 0, 0,
-	    	  0, 1, 0);
-	    	  
-	init_lights();
-	
-	if(k>=100 && a<=180){
-		glRotatef(a, 0, 0.5, 1);
-	}else if(k>=100){
-		glRotatef(180, 0, 0.5, 1);
-		n=1;
-	}
-	
-	
-	put();
-	
-	
-	if(k%20==0)
-		postavi_prepreku();
-
-
-	glPushMatrix();
-		glTranslatef(0+x1, 0, 7);
-		glRotatef(animation_parameter, 1, 0, 0);
-		material();
-		glutSolidSphere(1.1, 30, 30);
-    glPopMatrix();	
-
-	int j;
-	for(j=0; j<ukupno; j++)
-	{
-		glPushMatrix();
-			glTranslatef(0+nizP[j].xP, 0, nizP[j].zP+animation_parameter);
-			glRotatef(animation_parameter*10, 0,0,1);	
-			material();
-  			glutSolidIcosahedron();		
-  		glPopMatrix();	
-  		
-	}
-	
-	
-	
-	glutSwapBuffers();
-
-}
